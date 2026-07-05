@@ -3,23 +3,24 @@
 set -e -x
 
 # Kernel Source
-KERNEL_SOURCE="https://github.com/carlodandan/android_kernel_realme_sm7125"
-KERNEL_BRANCH="A13"
-KERNEL_DEFCONFIG="vendor/atoll-perf_defconfig"
+KERNEL_SOURCE="https://github.com/StimLuks87/android_kernel_realme_salaa"
+KERNEL_BRANCH="16QPR2"
+KERNEL_DEFCONFIG="salaa_defconfig"
 
-# Prebuilt Clang Toolchain (AOSP)
-CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master-kernel-build-2021/clang-r416183b.tar.gz"
+# Ссылка на оптимизированный Proton Clang (LLVM 19) с GitLab
+CLANG_GITLAB="https://gitlab.com/LeCmnGend/clang"
+CLANG_BRANCH="clang-19"
 
-# Prebuilt GCC Utilities (AOSP)
-GCC_x64="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9"
-GCC_x32="https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9"
-GCC_BRANCH="master-kernel-build-2021"
-
-# Setup make Command
+# Настройка команды make для полного LLVM окружения
 make_fun() {
-	make O=out ARCH=arm64 CC=clang HOSTCC=clang DTC=dtc \
-		CLANG_TRIPLE=aarch64-linux-gnu- \
-		CROSS_COMPILE=aarch64-linux-androidkernel- "$@"
+	make O=out ARCH=arm64 \
+		CC=clang \
+		HOSTCC=clang \
+		DTC=dtc \
+		LLVM=1 \
+		LLVM_IAS=1 \
+		CROSS_COMPILE=aarch64-linux-gnu- \
+		CROSS_COMPILE_COMPAT=arm-linux-gnueabi- "$@"
 }
 
 # Work Path
@@ -35,21 +36,48 @@ KERNEL_SRC="${WORK}/${KERNEL}"
 mkdir -p "${WORK}"
 cd "${WORK}" || exit 1
 
-# Cloning all the Necessary files
-if [ ! -d clang ]; then mkdir clang && curl -Lsq "${CLANG_URL}" -o clang.tgz && tar -xzf clang.tgz -C clang; fi
-[ ! -d x64 ] && git clone --depth=1 "${GCC_x64}" -b "${GCC_BRANCH}" ./x64
-[ ! -d x32 ] && git clone --depth=1 "${GCC_x32}" -b "${GCC_BRANCH}" ./x32
+# Быстрое клонирование Clang из GitLab
+[ ! -d clang ] && git clone --depth=1 "${CLANG_GITLAB}" -b "${CLANG_BRANCH}" ./clang
+
+# Клонирование исходников ядра
 [ ! -d "${KERNEL}" ] && git clone --depth=1 "${KERNEL_SOURCE}" -b "${KERNEL_BRANCH}" "${KERNEL}"
 
-# Setting Toolchain Path
-PATH="${WORK}/clang/bin:${WORK}/x64/bin:${WORK}/x32/bin:/bin"
+# В PATH прописывается только бинарник нового Clang
+PATH="${WORK}/clang/bin:/bin:/usr/bin"
 
-# Enter Kernel root directory
+# Переходим в корень исходников ядра
 cd "${KERNEL_SRC}" || exit 1
 
-# KernelSU - Disable if not building one.
-# curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-
-# Start Compiling Kernel
+# Запуск компиляции ядра под Realme Salaa
 make_fun "${KERNEL_DEFCONFIG}"
-make_fun -j"$(nproc --all)" 2>&1 | tee build.log 
+make_fun -j"$(nproc --all)" 2>&1 | tee build.log
+
+
+# ====================================================================
+# ИНТЕГРАЦИЯ С ВАШИМ ANYKERNEL3 И СБОРКА ИТОГОВОГО ZIP
+# ====================================================================
+
+# Генерируем текущую дату для имени файла (замена пустой переменной TANGGAL)
+DATE_NOW=$(date +%Y%m%d-%H%m)
+
+# Проверяем, скомпилировался ли файл ядра Image.gz-dtb
+if [ -f "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz-dtb" ]; then
+    echo "Ядро успешно собрано! Начинаем упаковку в AnyKernel..."
+    
+    # Клонируем ваш собственный настроенный репозиторий AnyKernel3
+    git clone --depth=1 https://github.com/Luks-organization/AnyKernel3.git "${WORK}/AnyKernel"
+    
+    # Копируем свежее ядро из папки сборки в ваш AnyKernel
+    cp "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz-dtb" "${WORK}/AnyKernel/"
+    
+    # Переходим в папку упаковщика
+    cd "${WORK}/AnyKernel" || exit 1
+    
+    # Создаем готовый архив прошивки Bolt-ZAP
+    zip -r9 "${WORK}/Bolt-ZAP-salaa-${DATE_NOW}.zip" ./* -x .git* README.md
+    
+    echo "Сборка AnyKernel завершена! Готовый ZIP лежит в корне папки ${WORK}"
+else
+    echo "Ошибка: Файл Image.gz-dtb не найден. Компиляция завершилась с ошибкой."
+    exit 1
+fi
