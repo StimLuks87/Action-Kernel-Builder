@@ -8,15 +8,14 @@ KERNEL_BRANCH="16QPR2"
 KERNEL_DEFCONFIG="salaa_defconfig"
 
 # Ссылка на оптимизированный Proton Clang (LLVM 19) с GitLab
-CLANG_GITLAB="https://gitlab.com/LeCmnGend/clang"
-CLANG_BRANCH="clang-19"
+CLANG_GITLAB="https://gitlab.com/kei-space/clang/r547379"
+CLANG_BRANCH="master"
 
 # Настройка команды make для полного LLVM окружения
 make_fun() {
 	make O=out ARCH=arm64 \
 		CC=clang \
 		HOSTCC=clang \
-		DTC=dtc \
 		LLVM=1 \
 		LLVM_IAS=1 \
 		CROSS_COMPILE=aarch64-linux-gnu- \
