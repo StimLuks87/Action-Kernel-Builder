@@ -57,15 +57,15 @@ make_fun -j"$(nproc --all)" 2>&1 | tee build.log
 # Генерируем текущую дату для имени файла (замена пустой переменной TANGGAL)
 DATE_NOW=$(date +%Y%m%d-%H%m)
 
-# Проверяем, скомпилировался ли файл ядра Image.gz-dtb
-if [ -f "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz-dtb" ]; then
+# Проверяем, скомпилировался ли файл ядра Image.gz
+if [ -f "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz" ]; then
     echo "Ядро успешно собрано! Начинаем упаковку в AnyKernel..."
     
     # Клонируем ваш собственный настроенный репозиторий AnyKernel3
     git clone --depth=1 https://github.com/Luks-organization/AnyKernel3.git "${WORK}/AnyKernel"
     
     # Копируем свежее ядро из папки сборки в ваш AnyKernel
-    cp "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz-dtb" "${WORK}/AnyKernel/"
+    cp "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz" "${WORK}/AnyKernel/"
     
     # Переходим в папку упаковщика
     cd "${WORK}/AnyKernel" || exit 1
@@ -75,6 +75,6 @@ if [ -f "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz-dtb" ]; then
     
     echo "Сборка AnyKernel завершена! Готовый ZIP лежит в корне папки ${WORK}"
 else
-    echo "Ошибка: Файл Image.gz-dtb не найден. Компиляция завершилась с ошибкой."
+    echo "Ошибка: Файл Image.gz не найден. Компиляция завершилась с ошибкой."
     exit 1
 fi
