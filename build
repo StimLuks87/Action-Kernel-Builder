@@ -11,17 +11,8 @@ KERNEL_DEFCONFIG="salaa_defconfig"
 CLANG_GITLAB="https://gitlab.com/kei-space/clang/r547379"
 CLANG_BRANCH="master"
 
-# Настройка команды make для полного LLVM окружения
-make_fun() {
-	make O=out ARCH=arm64 \
-		CC=clang \
-		HOSTCC=clang \
-		LLVM=1 \
-		LLVM_IAS=1 "$@"
-}
-
 # Work Path
-WORK="${HOME}/work"
+WORK="/home/runner/work"
 
 # Kernel Folder Name
 KERNEL="myKernel"
@@ -29,8 +20,26 @@ KERNEL="myKernel"
 # Kernel Source Path
 KERNEL_SRC="${WORK}/${KERNEL}"
 
+# ====================================================================
+# [Ускорение] Настройка переменных для ccache
+# ====================================================================
+export USE_CCACHE=1
+export CCACHE_DIR="${WORK}/.ccache"
+export CCACHE_EXEC=$(which ccache || echo "/usr/bin/ccache")
+export CCACHE_COMPILERCHECK=content
+
+# Настройка команды make для полного LLVM окружения с поддержкой ccache
+make_fun() {
+	make O=out ARCH=arm64 \
+		CC="ccache clang" \
+		HOSTCC="ccache clang" \
+		LLVM=1 \
+		LLVM_IAS=1 "$@"
+}
+
 # Prepare Directory
 mkdir -p "${WORK}"
+mkdir -p "${CCACHE_DIR}"
 cd "${WORK}" || exit 1
 
 # Быстрое клонирование Clang из GitLab
@@ -39,27 +48,36 @@ cd "${WORK}" || exit 1
 # Клонирование исходников ядра
 [ ! -d "${KERNEL}" ] && git clone --depth=1 "${KERNEL_SOURCE}" -b "${KERNEL_BRANCH}" "${KERNEL}"
 
-# В PATH прописывается только бинарник нового Clang
-PATH="${WORK}/clang/bin:/bin:/usr/bin"
+# [Исправлено] Добавляем бинарники Clang, сохраняя системные пути для ccache
+PATH="${WORK}/clang/bin:/usr/lib/ccache:$PATH"
 
 # Переходим в корень исходников ядра
 cd "${KERNEL_SRC}" || exit 1
+
+# Ограничиваем размер кэша на диске (5 ГБ вполне достаточно)
+ccache -M 5G
+ccache -s
 
 # Запуск компиляции ядра под Realme Salaa
 make_fun "${KERNEL_DEFCONFIG}"
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log
 
+# Выводим статистику попаданий в кэш после сборки
+ccache -s
 
 # ====================================================================
 # ИНТЕГРАЦИЯ С ВАШИМ ANYKERNEL3 И СБОРКА ИТОГОВОГО ZIP
 # ====================================================================
 
-# Генерируем текущую дату для имени файла (замена пустой переменной TANGGAL)
-DATE_NOW=$(date +%Y%m%d-%H%m)
+# Генерируем текущую дату для имени файла (%M исправлено на минуты)
+DATE_NOW=$(date +%Y%m%d-%H%M)
 
 # Проверяем, скомпилировался ли файл ядра Image.gz
 if [ -f "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz" ]; then
-    echo "Ядро успешно собрано! Начинаем упаковку в AnyKernel..."
+    echo "Ядро успешно Cobraно! Начинаем упаковку в AnyKernel..."
+    
+    # [Исправлено] Очищаем старую папку AnyKernel, чтобы избежать ошибок повторного клонирования
+    rm -rf "${WORK}/AnyKernel"
     
     # Клонируем ваш собственный настроенный репозиторий AnyKernel3
     git clone --depth=1 https://github.com/Luks-organization/AnyKernel3.git "${WORK}/AnyKernel"
