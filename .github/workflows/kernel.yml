@@ -10,9 +10,10 @@ on:
       ANDROID_VERSION:
         description: 'Your android version.'
         required: true
-        default: 'v-oss'
+        default: 'b-oss'
         type: choice
         options:
+        - b-oss
         - v-oss
         - u-oss
         - t-oss
