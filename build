@@ -9,7 +9,7 @@ KERNEL_DEFCONFIG="salaa_defconfig"
 
 # Ссылка на оптимизированный Proton Clang (LLVM 19) с GitLab
 CLANG_GITLAB="https://gitlab.com/clangsantoni/zyc_clang.git"
-CLANG_BRANCH="21"
+CLANG_BRANCH="20"
 
 # Work Path
 WORK="/home/runner/work"
