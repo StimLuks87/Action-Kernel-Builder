@@ -35,8 +35,14 @@ make_fun() {
 		HOSTCC="ccache clang" \
 		LLVM=1 \
 		LLVM_IAS=1 \
+        AR=llvm-ar \
+        NM=llvm-nm \
+        OBJCOPY=llvm-objcopy \
+        OBJDUMP=llvm-objdump \
+        STRIP=llvm-strip \
+        LD=ld.lld \
         CROSS_COMPILE=aarch64-linux-gnu- \
-        CROSS_COMPILE_ARM32=arm-linux-gnueabi- "$@"
+        CROSS_COMPILE_COMPAT=arm-linux-gnueabi- "$@"
 }
 
 # Prepare Directory
