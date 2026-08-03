@@ -1,105 +1,102 @@
-#!/bin/sh
+#!/bin/bash
 
-set -e -x
+# Остановка при ошибках, неинициализированных переменных и ошибках в конвейерах (pipe)
+set -euo pipefail
+set -x
+
+# ====================================================================
+# КОНФИГУРАЦИЯ СБОРКИ
+# ====================================================================
 
 # Kernel Source
 KERNEL_SOURCE="https://github.com/StimLuks87/android_kernel_realme_salaa"
 KERNEL_BRANCH="16QPR2"
 KERNEL_DEFCONFIG="salaa_defconfig"
 
-# Ссылка на оптимизированный Proton Clang (LLVM 19) с GitLab
+# Clang Toolchain (ZYC Clang / LLVM)
 CLANG_GITLAB="https://gitlab.com/clangsantoni/zyc_clang.git"
 CLANG_BRANCH="20"
 
-# Work Path
+# Пути
 WORK="/home/runner/work"
-
-# Kernel Folder Name
 KERNEL="myKernel"
-
-# Kernel Source Path
 KERNEL_SRC="${WORK}/${KERNEL}"
 
 # ====================================================================
-# [Ускорение] Настройка переменных для ccache
+# НАСТРОЙКА CCACHE
 # ====================================================================
 export USE_CCACHE=1
 export CCACHE_DIR="${WORK}/.ccache"
 export CCACHE_EXEC=$(which ccache || echo "/usr/bin/ccache")
 export CCACHE_COMPILERCHECK=content
+export CCACHE_MAXSIZE="5G"
 
-# Настройка команды make для полного LLVM окружения с поддержкой ccache
+# Функция вызова make с флагами LLVM и ccache
 make_fun() {
 	make O=out ARCH=arm64 \
 		CC="ccache clang" \
 		HOSTCC="ccache clang" \
 		LLVM=1 \
-		LLVM_IAS=1 \
-        AR=llvm-ar \
-        NM=llvm-nm \
-        OBJCOPY=llvm-objcopy \
-        OBJDUMP=llvm-objdump \
-        STRIP=llvm-strip \
-        LD=ld.lld \
-        CROSS_COMPILE=aarch64-linux-gnu- \
-        CROSS_COMPILE_COMPAT=arm-linux-gnueabi- "$@"
+		CROSS_COMPILE=aarch64-linux-gnu- \
+		CROSS_COMPILE_COMPAT=arm-linux-gnueabi- "$@"
 }
 
-# Prepare Directory
-mkdir -p "${WORK}"
-mkdir -p "${CCACHE_DIR}"
-cd "${WORK}" || exit 1
+# ====================================================================
+# ПОДГОТОВКА ОКРУЖЕНИЯ
+# ====================================================================
+mkdir -p "${WORK}" "${CCACHE_DIR}"
+cd "${WORK}"
 
-# Быстрое клонирование Clang из GitLab
-[ ! -d clang ] && git clone --depth=1 "${CLANG_GITLAB}" -b "${CLANG_BRANCH}" ./clang
+# Быстрое клонирование тулчейна Clang
+if [ ! -d clang ]; then
+	git clone --depth=1 --single-branch -b "${CLANG_BRANCH}" "${CLANG_GITLAB}" ./clang
+fi
 
 # Клонирование исходников ядра
-[ ! -d "${KERNEL}" ] && git clone --depth=1 "${KERNEL_SOURCE}" -b "${KERNEL_BRANCH}" "${KERNEL}"
+if [ ! -d "${KERNEL}" ]; then
+	git clone --depth=1 --single-branch -b "${KERNEL_BRANCH}" "${KERNEL_SOURCE}" "${KERNEL}"
+fi
 
-# [Исправлено] Добавляем бинарники Clang, сохраняя системные пути для ccache
-PATH="${WORK}/clang/bin:/usr/lib/ccache:$PATH"
+# Настройка PATH (Clang бинарники первыми)
+PATH="${WORK}/clang/bin:${PATH}"
 
 # Переходим в корень исходников ядра
-cd "${KERNEL_SRC}" || exit 1
+cd "${KERNEL_SRC}"
 
-# Ограничиваем размер кэша на диске (5 ГБ вполне достаточно)
+# Настройка и обнуление статистики ccache перед сборкой
 ccache -M 5G
-ccache -s
+ccache -z
 
-# Запуск компиляции ядра под Realme Salaa
+# ====================================================================
+# СБОРКА ЯДРА
+# ====================================================================
 make_fun "${KERNEL_DEFCONFIG}"
 make_fun -j"$(nproc --all)" 2>&1 | tee build.log
 
-# Выводим статистику попаданий в кэш после сборки
+# Вывод статистики ccache после сборки
 ccache -s
 
 # ====================================================================
-# ИНТЕГРАЦИЯ С ВАШИМ ANYKERNEL3 И СБОРКА ИТОГОВОГО ZIP
+# УПАКОВКА В ANYKERNEL3
 # ====================================================================
-
-# Генерируем текущую дату для имени файла (%M исправлено на минуты)
 DATE_NOW=$(date +%Y%m%d-%H%M)
+TARGET_IMAGE="${KERNEL_SRC}/out/arch/arm64/boot/Image.gz"
 
-# Проверяем, скомпилировался ли файл ядра Image.gz
-if [ -f "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz" ]; then
-    echo "Ядро успешно Cobraно! Начинаем упаковку в AnyKernel..."
+if [ -f "${TARGET_IMAGE}" ]; then
+    echo "=== Ядро успешно собрано! Начинаем упаковку в AnyKernel... ==="
     
-    # [Исправлено] Очищаем старую папку AnyKernel, чтобы избежать ошибок повторного клонирования
+    # Очистка и клонирование AnyKernel3
     rm -rf "${WORK}/AnyKernel"
-    
-    # Клонируем ваш собственный настроенный репозиторий AnyKernel3
     git clone --depth=1 https://github.com/Luks-organization/AnyKernel3.git "${WORK}/AnyKernel"
     
-    # Копируем свежее ядро из папки сборки в ваш AnyKernel
-    cp "${KERNEL_SRC}/out/arch/arm64/boot/Image.gz" "${WORK}/AnyKernel/"
+    # Копирование собранного ядра
+    cp "${TARGET_IMAGE}" "${WORK}/AnyKernel/"
     
-    # Переходим в папку упаковщика
-    cd "${WORK}/AnyKernel" || exit 1
+    # Создание ZIP архива
+    cd "${WORK}/AnyKernel"
+    zip -r9 "${WORK}/Bolt-ZAP-salaa-${DATE_NOW}.zip" ./* -x "*.git*" "README.md"
     
-    # Создаем готовый архив прошивки Bolt-ZAP
-    zip -r9 "${WORK}/Bolt-ZAP-salaa-${DATE_NOW}.zip" ./* -x .git* README.md
-    
-    echo "Сборка AnyKernel завершена! Готовый ZIP лежит в корне папки ${WORK}"
+    echo "=== Сборка AnyKernel завершена! Архив: ${WORK}/Bolt-ZAP-salaa-${DATE_NOW}.zip ==="
 else
     echo "Ошибка: Файл Image.gz не найден. Компиляция завершилась с ошибкой."
     exit 1
