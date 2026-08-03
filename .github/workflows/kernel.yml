@@ -28,22 +28,20 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout
-      uses: actions/checkout@main
+      uses: actions/checkout@v4
 
-    - name: Packages
+    - name: Setup Build Packages
       run: |
         sudo apt-get update
         sudo apt-get install -y git ccache automake flex lzop bison gperf build-essential zip curl zlib1g-dev g++-multilib libxml2-utils bzip2 libbz2-dev libbz2-1.0 libghc-bzlib-dev squashfs-tools pngcrush schedtool dpkg-dev liblz4-tool make optipng maven libssl-dev pwgen libswitch-perl policycoreutils minicom libxml-sax-base-perl libxml-simple-perl bc libc6-dev-i386 lib32ncurses5-dev libx11-dev lib32z-dev libgl1-mesa-dev xsltproc unzip device-tree-compiler python3
 
-    # [УСКОРЕНИЕ] Шаг для сохранения и восстановления компиляционного кэша ccache
-    - name: Setup Compiler Cache
-      uses: actions/cache@v4
+    # [ОПТИМИЗАЦИЯ] Нативный ccache action с автоматическим сохранением
+    - name: Setup Ccache
+      uses: hendrikmuhs/ccache-action@v1.2
       with:
-        path: /home/runner/work/.ccache
-        key: kernel-ccache-${{ github.event.inputs.DEVICE_NAME }}-${{ github.sha }}
-        restore-keys: |
-          kernel-ccache-${{ github.event.inputs.DEVICE_NAME }}-
-          kernel-ccache-
+        max-size: 5G
+        key: kernel-${{ github.event.inputs.DEVICE_NAME }}-${{ github.event.inputs.ANDROID_VERSION }}
+        append-timestamp: false
 
     - name: Start Building Kernel
       run: |
@@ -55,10 +53,10 @@ jobs:
     - name: Set Properties
       id: props
       run: |
-        echo "date=$(TZ=Asia/Manila date +%Y%m%d-%I%M%p)" >> $GITHUB_OUTPUT
-
+        echo "date=$(TZ=Asia/Almaty date +%Y%m%d-%H%M)" >> $GITHUB_OUTPUT
+        
     - name: Release Flashable AnyKernel3 Zip
-      uses: ncipollo/release-action@v1.12.0
+      uses: ncipollo/release-action@v1.14.0
       with:
         artifacts: |
           /home/runner/work/Bolt-ZAP-*.zip
@@ -77,5 +75,5 @@ jobs:
 
     - name: Link of Release
       run: |
-        echo "Enjoy your Newly Built Kernel"
+        echo "Enjoy your Newly Built Kernel!"
         echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ github.run_id }}-${{ steps.props.outputs.date }}"
