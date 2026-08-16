@@ -10,7 +10,7 @@ set -x
 
 # Kernel Source
 KERNEL_SOURCE="https://github.com/StimLuks87/android_kernel_realme_salaa"
-KERNEL_BRANCH="16QPR2"
+KERNEL_BRANCH="16QPR2_KSU"
 KERNEL_DEFCONFIG="salaa_defconfig"
 
 # Clang Toolchain (ZYC Clang / LLVM)
