@@ -12,6 +12,8 @@ set -x
 KERNEL_SOURCE="https://github.com/StimLuks87/android_kernel_realme_salaa"
 KERNEL_BRANCH="16QPR2"
 KERNEL_DEFCONFIG="salaa_defconfig"
+HOSTCC_CMD="ccache clang"
+HOSTCXX_CMD="ccache clang++"
 
 # Clang Toolchain (ZYC Clang / LLVM)
 CLANG_GITLAB="https://gitlab.com/clangsantoni/zyc_clang.git"
@@ -35,7 +37,8 @@ export CCACHE_MAXSIZE="5G"
 make_fun() {
 	make O=out ARCH=arm64 \
 		CC="ccache clang" \
-		HOSTCC="ccache clang" \
+        HOSTCC="$HOSTCC_CMD" \
+        HOSTCXX="$HOSTCXX_CMD" \
 		LLVM=1 \
 		CROSS_COMPILE=aarch64-linux-gnu- \
 		CROSS_COMPILE_COMPAT=arm-linux-gnueabi- "$@"
